@@ -40,12 +40,8 @@ function connect() {
   };
 
   socket.onerror = () => {
-    term?.write('\r\n*** WebSocket 错误 ***\r\n');
+    term?.write('\r\n*** WebSocket Error ***\r\n');
   };
-
-  term?.onData((data) => {
-    if (socket?.readyState === WebSocket.OPEN) socket.send(data);
-  });
 }
 
 function disconnect() {
@@ -76,6 +72,11 @@ onMounted(() => {
   term.loadAddon(fitAddon);
   term.open(terminalContainer.value);
   fitAddon.fit();
+
+  // From Terminal to WebSocket（只注册一次，与参考一致）
+  term.onData((data) => {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(data);
+  });
 
   if (props.serverId) connect();
   else term.write('*** 请选择服务器后连接 ***\r\n');

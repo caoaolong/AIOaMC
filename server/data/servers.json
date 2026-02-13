@@ -9,5 +9,16 @@
     "name": "calong",
     "remark": "",
     "created_at": "2026-02-13T01:43:04.682Z"
+  },
+  {
+    "id": 2,
+    "host": "115.190.43.124",
+    "port": 22,
+    "username": "root",
+    "password": "Calong.424",
+    "private_key": null,
+    "name": "calong-server",
+    "remark": "",
+    "created_at": "2026-02-13T01:58:29.056Z"
   }
 ]

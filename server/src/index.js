@@ -200,21 +200,26 @@ app.post('/api/agent/chat', async (req, res) => {
   }
 });
 
-// ---------- WebSocket SSH 隧道（xterm 用）：HTTP upgrade 到 /ssh ----------
+// ---------- WebSocket SSH 隧道（xterm 用）：HTTP upgrade 到 /ssh，与参考 ssh_server 一致 ----------
 const wss = new WebSocketServer({ noServer: true });
+
+wss.on('connection', (ws, request) => {
+  const url = new URL(request.url || '', `http://${request.headers.host}`);
+  const serverId = url.searchParams.get('serverId');
+  if (!serverId) {
+    ws.send('\r\n*** missing serverId ***\r\n');
+    ws.close();
+    return;
+  }
+  handleSshConnection(ws, serverId);
+});
 
 httpServer.on('upgrade', (request, socket, head) => {
   const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
 
   if (pathname === '/ssh') {
-    const serverId = new URL(request.url || '', `http://${request.headers.host}`).searchParams.get('serverId');
-    if (!serverId) {
-      socket.destroy();
-      return;
-    }
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
-      handleSshConnection(ws, serverId);
     });
   } else {
     socket.destroy();

@@ -13,6 +13,35 @@ function getServerConfig(serverId) {
     host: row.host,
     port: Number(row.port) || 22,
     username: row.username,
+    readyTimeout: 30000,
+    // 兼容部分服务器（如老版本 OpenSSH、内网机）的算法
+    algorithms: {
+      kex: [
+        'ecdh-sha2-nistp256',
+        'ecdh-sha2-nistp384',
+        'ecdh-sha2-nistp521',
+        'diffie-hellman-group-exchange-sha256',
+        'diffie-hellman-group14-sha256',
+        'diffie-hellman-group14-sha1',
+      ],
+      cipher: [
+        'aes128-ctr',
+        'aes192-ctr',
+        'aes256-ctr',
+        'aes128-gcm',
+        'aes256-gcm',
+        'aes128-cbc',
+        'aes256-cbc',
+        '3des-cbc',
+      ],
+      serverHostKey: [
+        'ssh-ed25519',
+        'ecdsa-sha2-nistp256',
+        'ecdsa-sha2-nistp384',
+        'ecdsa-sha2-nistp521',
+        'ssh-rsa',
+      ],
+    },
   };
 
   if (privateKey) config.privateKey = privateKey;
@@ -43,15 +72,15 @@ export function handleSshConnection(ws, serverId) {
   const conn = new Client();
 
   conn.on('ready', () => {
-    conn.shell({ term: 'xterm-256color' }, (err, stream) => {
+    conn.shell((err, stream) => {
       if (err) {
-        ws.send('\r\n*** SSH Shell 错误: ' + err.message + ' ***\r\n');
+        ws.send('\r\n*** SSH Shell Error: ' + err.message + ' ***\r\n');
         ws.close();
         conn.end();
         return;
       }
 
-      // SSH stream -> WebSocket
+      // From SSH to WebSocket
       stream.on('data', (data) => {
         if (ws.readyState === 1) ws.send(data.toString());
       });
@@ -61,10 +90,9 @@ export function handleSshConnection(ws, serverId) {
         if (ws.readyState === 1) ws.close();
       });
 
-      // WebSocket -> SSH stream
+      // From WebSocket to SSH
       ws.on('message', (message) => {
-        const data = Buffer.isBuffer(message) ? message : Buffer.from(message);
-        if (stream.writable) stream.write(data.toString());
+        if (stream.writable) stream.write(message.toString());
       });
 
       ws.on('close', () => {
@@ -72,7 +100,9 @@ export function handleSshConnection(ws, serverId) {
       });
     });
   }).on('error', (err) => {
-    ws.send('\r\n*** SSH 连接错误: ' + err.message + ' ***\r\n');
+    const msg = err.message || String(err);
+    ws.send('\r\n*** SSH Connection Error: ' + msg + ' ***\r\n');
+    if (process.env.DEBUG_SSH) console.error('[SSH]', config.host, config.username, err);
     ws.close();
   }).connect(config);
 }
