@@ -12,7 +12,7 @@
 ## 技术栈
 
 - 前端：Vue 3、Vue Router、Naive UI、xterm.js
-- 后端：Express、ssh2、ws（WebSocket）、better-sqlite3、@langchain/openai
+- 后端：Express、ssh2、ws（WebSocket）、@langchain/openai；数据使用 `server/data/` 下 JSON 文件存储（无 SQLite）
 
 ## 启动
 

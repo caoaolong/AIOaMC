@@ -1,6 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { agentConfigQueries, serverQueries, serverServiceQueries } from './db.js';
+import { agentConfigQueries, serverQueries, serverServiceQueries } from './store.js';
 import { runCommand } from './ssh-proxy.js';
 
 function buildTools(serverList, servicesByServer) {

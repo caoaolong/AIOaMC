@@ -9,8 +9,8 @@ import {
   serverServiceQueries,
   agentServiceQueries,
   agentConfigQueries,
-} from './db.js';
-import { createSshStream, sendToSsh, closeSsh } from './ssh-proxy.js';
+} from './store.js';
+import { handleSshConnection } from './ssh-proxy.js';
 import { chatWithAgent } from './agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -200,37 +200,25 @@ app.post('/api/agent/chat', async (req, res) => {
   }
 });
 
-// ---------- WebSocket SSH 隧道（xterm 用） ----------
-const wss = new WebSocketServer({ server: httpServer, path: WS_PATH });
+// ---------- WebSocket SSH 隧道（xterm 用）：HTTP upgrade 到 /ssh ----------
+const wss = new WebSocketServer({ noServer: true });
 
-wss.on('connection', (ws, req) => {
-  const u = new URL(req.url || '', `http://${req.headers.host}`);
-  const serverId = u.searchParams.get('serverId');
-  if (!serverId) {
-    ws.close(4000, 'missing serverId');
-    return;
-  }
+httpServer.on('upgrade', (request, socket, head) => {
+  const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
 
-  createSshStream(serverId, (err, stream) => {
-    if (err) {
-      ws.send(JSON.stringify({ type: 'error', message: err.message }));
-      ws.close();
+  if (pathname === '/ssh') {
+    const serverId = new URL(request.url || '', `http://${request.headers.host}`).searchParams.get('serverId');
+    if (!serverId) {
+      socket.destroy();
       return;
     }
-    stream.on('data', (data) => {
-      if (ws.readyState === 1) ws.send(data);
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+      handleSshConnection(ws, serverId);
     });
-    stream.on('close', () => {
-      if (ws.readyState === 1) ws.close();
-    });
-    ws.on('message', (buf) => {
-      const data = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
-      if (stream.writable) stream.write(data);
-    });
-    ws.on('close', () => {
-      closeSsh(serverId);
-    });
-  });
+  } else {
+    socket.destroy();
+  }
 });
 
 // 静态前端（生产时可交给 nginx）

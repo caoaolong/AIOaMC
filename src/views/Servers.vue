@@ -58,8 +58,15 @@
         </template>
       </n-modal>
 
-      <n-modal v-model:show="sshModalVisible" preset="card" title="SSH 终端" style="width: 90vw; max-width: 900px" :mask-closable="false" @after-leave="currentSshServerId = null">
-        <div style="height: 420px">
+      <n-modal
+        v-model:show="sshModalVisible"
+        preset="card"
+        :title="sshModalTitle"
+        class="ssh-modal"
+        :mask-closable="false"
+        @after-leave="currentSshServerId = null; currentSshServerName = ''"
+      >
+        <div class="ssh-terminal-wrap">
           <SshTerminal v-if="currentSshServerId" :server-id="currentSshServerId" />
         </div>
       </n-modal>
@@ -68,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, h, onMounted } from 'vue';
+import { ref, computed, h, onMounted } from 'vue';
 import { NButton, NSpace, useMessage } from 'naive-ui';
 import { useRouter } from 'vue-router';
 import { serversApi, type Server } from '../api';
@@ -81,6 +88,10 @@ const loading = ref(false);
 const modalVisible = ref(false);
 const sshModalVisible = ref(false);
 const currentSshServerId = ref<number | null>(null);
+const currentSshServerName = ref('');
+const sshModalTitle = computed(() =>
+  currentSshServerName.value ? `SSH 终端 - ${currentSshServerName.value}` : 'SSH 终端'
+);
 const authMode = ref<'password' | 'key'>('password');
 const editingId = ref<number | null>(null);
 const form = ref(getEmptyForm());
@@ -110,7 +121,7 @@ const columns = [
     width: 260,
     render: (row: Server) =>
       h(NSpace, {}, () => [
-        h(NButton, { size: 'small', onClick: () => openSsh(row.id) }, () => 'SSH 连接'),
+        h(NButton, { size: 'small', onClick: () => openSsh(row) }, () => 'SSH 连接'),
         h(NButton, { size: 'small', onClick: () => router.push(`/servers/${row.id}/services`) }, () => '服务管理'),
         h(NButton, { size: 'small', onClick: () => showModal(false, row) }, () => '编辑'),
         h(NButton, { size: 'small', type: 'error', onClick: () => doDelete(row.id) }, () => '删除'),
@@ -170,8 +181,9 @@ async function submit() {
   }
 }
 
-function openSsh(serverId: number) {
-  currentSshServerId.value = serverId;
+function openSsh(server: Server) {
+  currentSshServerId.value = server.id;
+  currentSshServerName.value = server.name;
   sshModalVisible.value = true;
 }
 
@@ -187,3 +199,14 @@ async function doDelete(id: number) {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.ssh-modal {
+  width: 90vw;
+  max-width: 960px;
+}
+.ssh-terminal-wrap {
+  width: 100%;
+  height: 600px;
+}
+</style>

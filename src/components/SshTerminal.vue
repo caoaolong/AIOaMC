@@ -1,105 +1,116 @@
 <template>
-  <div class="terminal-wrap">
-    <div ref="termRef" class="terminal-container"></div>
-    <div v-if="status" class="terminal-status">{{ status }}</div>
-  </div>
+  <div ref="terminalContainer" class="terminal-container"></div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { getSshWsUrl } from '../api';
 
 const props = defineProps<{ serverId: number }>();
-const termRef = ref<HTMLElement | null>(null);
-const status = ref('');
+const terminalContainer = ref<HTMLElement | null>(null);
 
 let term: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
-let ws: WebSocket | null = null;
+let socket: WebSocket | null = null;
 
 function connect() {
-  if (!termRef.value || !props.serverId) return;
-  status.value = '正在连接...';
-  const url = getSshWsUrl(props.serverId);
-  ws = new WebSocket(url);
-  ws.binaryType = 'arraybuffer';
+  if (!terminalContainer.value || !props.serverId) return;
 
-  ws.onopen = () => {
-    status.value = '已连接';
+  const url = getSshWsUrl(props.serverId);
+  socket = new WebSocket(url);
+  socket.binaryType = 'arraybuffer';
+
+  socket.onopen = () => {
+    term?.write('*** 已连接 SSH 代理 ***\r\n');
     setTimeout(() => fitAddon?.fit(), 100);
   };
-  ws.onmessage = (ev) => {
+
+  socket.onmessage = (ev) => {
     if (term && ev.data) {
-      const data = typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer);
+      const data =
+        typeof ev.data === 'string' ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer);
       term.write(data);
     }
   };
-  ws.onerror = () => {
-    status.value = '连接错误';
+
+  socket.onclose = () => {
+    term?.write('\r\n*** 连接已关闭 ***\r\n');
   };
-  ws.onclose = () => {
-    status.value = '已断开';
+
+  socket.onerror = () => {
+    term?.write('\r\n*** WebSocket 错误 ***\r\n');
   };
+
+  term?.onData((data) => {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(data);
+  });
 }
 
 function disconnect() {
-  if (ws) {
-    ws.close();
-    ws = null;
+  if (socket) {
+    socket.close();
+    socket = null;
   }
-  status.value = '';
+}
+
+function handleResize() {
+  fitAddon?.fit();
 }
 
 onMounted(() => {
-  if (!termRef.value) return;
+  if (!terminalContainer.value) return;
+
   term = new Terminal({
     cursorBlink: true,
-    theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     fontSize: 14,
+    theme: {
+      background: '#1e1e1e',
+      foreground: '#d4d4d4',
+    },
   });
+
   fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
-  term.open(termRef.value);
-  term.onData((data) => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(data);
-  });
+  term.open(terminalContainer.value);
+  fitAddon.fit();
+
   if (props.serverId) connect();
+  else term.write('*** 请选择服务器后连接 ***\r\n');
+
+  window.addEventListener('resize', handleResize);
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize);
   disconnect();
   term?.dispose();
   term = null;
   fitAddon = null;
 });
 
-watch(() => props.serverId, (id) => {
-  disconnect();
-  if (id && term) connect();
-});
+watch(
+  () => props.serverId,
+  (id) => {
+    disconnect();
+    if (id && term) connect();
+  }
+);
 </script>
 
 <style scoped>
-.terminal-wrap {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 320px;
-}
 .terminal-container {
-  flex: 1;
-  padding: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
   background: #1e1e1e;
-  border-radius: 8px;
+  padding: 10px;
+  border-radius: 4px;
 }
+
 .terminal-container :deep(.xterm) {
   height: 100%;
-}
-.terminal-status {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #888;
 }
 </style>

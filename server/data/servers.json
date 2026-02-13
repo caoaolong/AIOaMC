@@ -1,0 +1,13 @@
+[
+  {
+    "id": 1,
+    "host": "10.110.9.102",
+    "port": 22,
+    "username": "root",
+    "password": "122333",
+    "private_key": null,
+    "name": "calong",
+    "remark": "",
+    "created_at": "2026-02-13T01:43:04.682Z"
+  }
+]
